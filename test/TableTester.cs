@@ -4,9 +4,10 @@ using System.Data.SqlClient;
 using System.IO;
 using System.Text;
 using NUnit.Framework;
-using SchemaZen.model;
+using SchemaZen.Library;
+using SchemaZen.Library.Models;
 
-namespace SchemaZen.test {
+namespace SchemaZen.Tests {
 	[TestFixture]
 	public class TableTester {
 		private List<List<string>> TabDataToList(string data) {
@@ -129,8 +130,9 @@ namespace SchemaZen.test {
 			t.Columns.Add(new Column("id", "int", false, null));
 			t.Columns.Add(new Column("code", "char", 1, false, null));
 			t.Columns.Add(new Column("description", "varchar", 20, false, null));
-			var computedCol = new Column("computed", "varchar", false, null);
-			computedCol.ComputedDefinition = "code + ' : ' + description";
+			var computedCol = new Column("computed", "varchar", false, null) {
+				ComputedDefinition = "code + ' : ' + description"
+			};
 			t.Columns.Add(computedCol);
 			t.Columns.Find("id").Identity = new Identity(1, 1);
 			t.AddConstraint(new Constraint("PK_Status", "PRIMARY KEY", "id"));
@@ -162,6 +164,44 @@ namespace SchemaZen.test {
 				File.Delete(filename);
 			}
 		}
+
+
+		[Test]
+		public void TestImportAndExportDateTimeWithoutLosePrecision() {
+			var t = new Table("dbo", "Dummy");
+			t.Columns.Add(new Column("id", "int", false, null));
+			t.Columns.Add(new Column("createdTime", "datetime", false, null));
+			t.Columns.Find("id").Identity = new Identity(1, 1);
+			t.AddConstraint(new Constraint("PK_Status", "PRIMARY KEY", "id"));
+
+			var conn = TestHelper.GetConnString("TESTDB");
+			DBHelper.DropDb(conn);
+			DBHelper.CreateDb(conn);
+			SqlConnection.ClearAllPools();
+			DBHelper.ExecBatchSql(conn, t.ScriptCreate());
+
+			var dataIn =
+				@"1	2017-02-21 11:20:30.1
+2	2017-02-22 11:20:30.12
+3	2017-02-23 11:20:30.123
+";
+			var filename = Path.GetTempFileName();
+
+			var writer = File.AppendText(filename);
+			writer.Write(dataIn);
+			writer.Flush();
+			writer.Close();
+
+			try {
+				t.ImportData(conn, filename);
+				var sw = new StringWriter();
+				t.ExportData(conn, sw);
+				Assert.AreEqual(dataIn, sw.ToString());
+			} finally {
+				File.Delete(filename);
+			}
+		}
+
 
 		[Test]
 		public void TestImportAndExportNonDefaultSchema() {
@@ -206,8 +246,15 @@ namespace SchemaZen.test {
 		public void TestLargeAmountOfRowsImportAndExport() {
 			var t = new Table("dbo", "TestData");
 			t.Columns.Add(new Column("test_field", "int", false, null));
-			t.AddConstraint(new Constraint("PK_TestData", "PRIMARY KEY", "test_field"));
-			t.AddConstraint(new Constraint("IX_TestData_PK", "INDEX", "test_field") { Clustered = true, Table = t, Unique = true }); // clustered index is required to ensure the row order is the same as what we import
+			t.AddConstraint(new Constraint("PK_TestData", "PRIMARY KEY", "test_field") {
+				IndexType = "NONCLUSTERED"
+			});
+			t.AddConstraint(new Constraint("IX_TestData_PK", "INDEX", "test_field") {
+				// clustered index is required to ensure the row order is the same as what we import
+				IndexType = "CLUSTERED",
+				Table = t,
+				Unique = true
+			});
 
 			var conn = TestHelper.GetConnString("TESTDB");
 			DBHelper.DropDb(conn);
@@ -220,7 +267,7 @@ namespace SchemaZen.test {
 			var writer = File.CreateText(filename);
 			StringBuilder sb = new StringBuilder();
 
-			for (var i = 0; i < Table.rowsInBatch * 4.2; i++) {
+			for (var i = 0; i < Table.RowsInBatch * 4.2; i++) {
 				sb.AppendLine(i.ToString());
 				writer.WriteLine(i.ToString());
 			}
@@ -272,7 +319,7 @@ namespace SchemaZen.test {
 			t.Columns.Add(new Column("x", "uniqueidentifier", false, null));
 			t.Columns.Add(new Column("y", "varbinary", 50, false, null));
 			t.Columns.Add(new Column("z", "varbinary", -1, false, null));
-			t.Columns.Add(new Column("aa", "varchar", 50, true, new Default("DF_AllTypesTest_aa", "'asdf'")));
+			t.Columns.Add(new Column("aa", "varchar", 50, true, new Default("DF_AllTypesTest_aa", "'asdf'", false)));
 			t.Columns.Add(new Column("bb", "varchar", -1, true, null));
 			t.Columns.Add(new Column("cc", "xml", true, null));
 			t.Columns.Add(new Column("dd", "hierarchyid", false, null));
