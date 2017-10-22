@@ -67,10 +67,19 @@ namespace SchemaZen.Library.Models {
 				after +=
 						$"{Environment.NewLine}{(Disabled ? "DISABLE" : "ENABLE")} TRIGGER [{Owner}].[{Name}] ON [{RelatedTableSchema}].[{RelatedTableName}]{Environment.NewLine}GO{Environment.NewLine}";
 
-			if (string.IsNullOrEmpty(definition))
-				definition = $"/* missing definition for {RoutineType} [{Owner}].[{Name}] */";
-			else
-				definition = RemoveExtraNewLines(definition);
+            if (string.IsNullOrEmpty(definition))
+                definition = $"/* missing definition for {RoutineType} [{Owner}].[{Name}] */";
+            else
+            {
+                if (RoutineType == RoutineKind.View)
+                {
+                    SQLFormatter.setTrailingCommas(true);
+                    definition = SQLFormatter.formatSQL(definition);
+                }
+
+                definition = RemoveExtraNewLines(definition);
+
+            }
 
 			return before + definition + after;
 		}
