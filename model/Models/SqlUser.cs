@@ -1,15 +1,17 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Remoting.Metadata.W3cXsd2001;
 
 namespace SchemaZen.Library.Models {
-	public class SqlUser : INameable, IHasOwner, IScriptable {
+	public class SqlUser : INameable, IHasOwner, IScriptable, IDatable {
 		public List<string> DatabaseRoles = new List<string>();
 		public string Owner { get; set; }
 		public string Name { get; set; }
 		public byte[] PasswordHash { get; set; }
+        public DateTime? ModifyDate { get; set; }
 
-		public SqlUser(string name, string owner) {
+        public SqlUser(string name, string owner) {
 			Name = name;
 			Owner = owner;
 		}

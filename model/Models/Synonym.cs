@@ -1,10 +1,13 @@
-﻿namespace SchemaZen.Library.Models {
-	public class Synonym : INameable, IHasOwner, IScriptable {
+﻿using System;
+
+namespace SchemaZen.Library.Models {
+	public class Synonym : INameable, IHasOwner, IScriptable, IDatable {
 		public string Name { get; set; }
 		public string Owner { get; set; }
 		public string BaseObjectName { get; set; }
+        public DateTime? ModifyDate { get; set; }
 
-		public Synonym(string name, string owner) {
+        public Synonym(string name, string owner) {
 			Name = name;
 			Owner = owner;
 		}

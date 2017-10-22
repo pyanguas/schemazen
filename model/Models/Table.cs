@@ -13,7 +13,7 @@ namespace SchemaZen.Library.Models {
 		public string Name { get; set; }
 		public string Owner { get; set; }
 
-		public Schema(string name, string owner) {
+        public Schema(string name, string owner) {
 			Owner = owner;
 			Name = name;
 		}
@@ -28,7 +28,7 @@ end
 		}
 	}
 
-	public class Table : INameable, IHasOwner, IScriptable {
+	public class Table : INameable, IHasOwner, IScriptable, IDatable {
 		private const string _rowSeparator = "\r\n";
 		private const string _tab = "\t";
 		private const string _escapeTab = "--SchemaZenTAB--";
@@ -46,8 +46,9 @@ end
 		public string Name { get; set; }
 		public string Owner { get; set; }
 		public bool IsType;
+        public DateTime? ModifyDate { get; set; }
 
-		public Table(string owner, string name) {
+        public Table(string owner, string name) {
 			Owner = owner;
 			Name = name;
 		}

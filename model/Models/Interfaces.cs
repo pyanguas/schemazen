@@ -1,4 +1,6 @@
-﻿namespace SchemaZen.Library.Models {
+﻿using System;
+
+namespace SchemaZen.Library.Models {
 	public interface INameable {
 		string Name { get; set; }
 	}
@@ -10,4 +12,9 @@
 	public interface IScriptable {
 		string ScriptCreate();
 	}
+
+    public interface IDatable {
+        DateTime? ModifyDate { get; set; }
+    }
+
 }

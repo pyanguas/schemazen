@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 
 namespace SchemaZen.Library.Models {
-	public class ForeignKey : INameable, IScriptable {
+	public class ForeignKey : INameable, IScriptable, IDatable {
 		public bool Check { get; set; }
 		public bool IsSystemNamed { get; set; }
 		public List<string> Columns { get; set; } = new List<string>();
@@ -14,8 +14,9 @@ namespace SchemaZen.Library.Models {
 		public List<string> RefColumns { get; set; } = new List<string>();
 		public Table RefTable { get; set; }
 		public Table Table { get; set; }
+        public DateTime? ModifyDate { get; set; }
 
-		private const string _defaultRules = "NO ACTION|RESTRICT";
+        private const string _defaultRules = "NO ACTION|RESTRICT";
 
 		public ForeignKey(string name) {
 			Name = name;

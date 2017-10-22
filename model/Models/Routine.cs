@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace SchemaZen.Library.Models {
-	public class Routine : INameable, IHasOwner, IScriptable {
+	public class Routine : INameable, IHasOwner, IScriptable, IDatable {
 		public enum RoutineKind {
 			Procedure,
 			Function,
@@ -23,8 +23,9 @@ namespace SchemaZen.Library.Models {
 		public string RelatedTableSchema { get; set; }
 		public string RelatedTableName { get; set; }
 		public Database Db { get; set; }
+        public DateTime? ModifyDate { get; set; }
 
-		private const string _sqlCreateRegex =
+        private const string _sqlCreateRegex =
 			@"\A" + Database.SqlWhitespaceOrCommentRegex + @"*?(CREATE)" + Database.SqlWhitespaceOrCommentRegex;
 
 		private const string _sqlCreateWithNameRegex =

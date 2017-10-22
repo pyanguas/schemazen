@@ -1,9 +1,10 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using SchemaZen.Library.Extensions;
 
 namespace SchemaZen.Library.Models {
-	public class Constraint : INameable, IScriptable {
+	public class Constraint : INameable, IScriptable, IDatable {
 		public string IndexType { get; set; }
 		public List<ConstraintColumn> Columns { get; set; } = new List<ConstraintColumn>();
 		public List<string> IncludedColumns { get; set; } = new List<string>();
@@ -14,8 +15,9 @@ namespace SchemaZen.Library.Models {
 		public bool Unique { get; set; }
 		private bool _isNotForReplication;
 		private string _checkConstraintExpression;
+        public DateTime? ModifyDate { get; set; }
 
-		public Constraint(string name, string type, string columns) {
+        public Constraint(string name, string type, string columns) {
 			Name = name;
 			Type = type;
 			if (!string.IsNullOrEmpty(columns)) {

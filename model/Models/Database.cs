@@ -59,11 +59,13 @@ namespace SchemaZen.Library.Models {
 		public const string SqlQuotedIdentifierRegex = "\".+?\"";
 
 		public const string SqlRegularIdentifierRegex = @"(?!\d)[\w@$#]+";
-			// see rules for regular identifiers here https://msdn.microsoft.com/en-us/library/ms175874.aspx
+        // see rules for regular identifiers here https://msdn.microsoft.com/en-us/library/ms175874.aspx
 
-		#region " Properties "
+        private static readonly DateTime NOW = DateTime.Now;
 
-		public List<SqlAssembly> Assemblies { get; set; } = new List<SqlAssembly>();
+        #region " Properties "
+
+        public List<SqlAssembly> Assemblies { get; set; } = new List<SqlAssembly>();
 		public string Connection { get; set; } = "";
 		public List<Table> DataTables { get; set; } = new List<Table>();
 		public string Dir { get; set; } = "";
@@ -199,13 +201,14 @@ namespace SchemaZen.Library.Models {
 			try {
 				// get synonyms
 				cm.CommandText = @"
-						select object_schema_name(object_id) as schema_name, name as synonym_name, base_object_name
+						select object_schema_name(object_id) as schema_name, name as synonym_name, base_object_name, modify_date
 						from sys.synonyms";
 				using (var dr = cm.ExecuteReader()) {
 					while (dr.Read()) {
 						var synonym = new Synonym((string) dr["synonym_name"], (string) dr["schema_name"]);
 						synonym.BaseObjectName = (string) dr["base_object_name"];
-						Synonyms.Add(synonym);
+                        synonym.ModifyDate = (DateTime)dr["modify_date"];
+                        Synonyms.Add(synonym);
 					}
 				}
 			} catch (SqlException) {
@@ -332,7 +335,7 @@ from #ScriptedRoles
 		private void LoadUsersAndLogins(SqlCommand cm) {
 			// get users that have access to the database
 			cm.CommandText = @"
-				select dp.name as UserName, USER_NAME(drm.role_principal_id) as AssociatedDBRole, default_schema_name
+				select dp.name as UserName, USER_NAME(drm.role_principal_id) as AssociatedDBRole, default_schema_name, dp.modify_date
 				from sys.database_principals dp
 				left outer join sys.database_role_members drm on dp.principal_id = drm.member_principal_id
 				where dp.type_desc = 'SQL_USER'
@@ -342,8 +345,11 @@ from #ScriptedRoles
 			SqlUser u = null;
 			using (var dr = cm.ExecuteReader()) {
 				while (dr.Read()) {
-					if (u == null || u.Name != (string) dr["UserName"])
-						u = new SqlUser((string) dr["UserName"], (string) dr["default_schema_name"]);
+                    if (u == null || u.Name != (string)dr["UserName"])
+                    {
+                        u = new SqlUser((string)dr["UserName"], (string)dr["default_schema_name"]);
+                        u.ModifyDate = (DateTime)dr["modify_date"];
+                    }
 					if (!(dr["AssociatedDBRole"] is DBNull))
 						u.DatabaseRoles.Add((string) dr["AssociatedDBRole"]);
 					if (!Users.Contains(u))
@@ -375,7 +381,7 @@ from #ScriptedRoles
 		private void LoadCLRAssemblies(SqlCommand cm) {
 			try {
 				// get CLR assemblies
-				cm.CommandText = @"select a.name as AssemblyName, a.permission_set_desc, af.name as FileName, af.content
+				cm.CommandText = @"select a.name as AssemblyName, a.permission_set_desc, af.name as FileName, af.content, a.modify_date
 						from sys.assemblies a
 						inner join sys.assembly_files af on a.assembly_id = af.assembly_id 
 						where a.is_user_defined = 1
@@ -431,7 +437,8 @@ from #ScriptedRoles
 						m.uses_quoted_identifier,
 						isnull(s2.name, s3.name) as tableSchema,
 						isnull(t.name, v.name) as tableName,
-						tr.is_disabled as trigger_disabled
+						tr.is_disabled as trigger_disabled,
+                        o.modify_date
 					from sys.sql_modules m
 						inner join sys.objects o on m.object_id = o.object_id
 						inner join sys.schemas s on s.schema_id = o.schema_id
@@ -448,7 +455,8 @@ from #ScriptedRoles
 					r.Text = dr["definition"] is DBNull ? string.Empty : (string) dr["definition"];
 					r.AnsiNull = (bool) dr["uses_ansi_nulls"];
 					r.QuotedId = (bool) dr["uses_quoted_identifier"];
-					Routines.Add(r);
+                    r.ModifyDate = (DateTime)dr["modify_date"];
+                    Routines.Add(r);
 
 					switch ((string) dr["type_desc"]) {
 						case "SQL_STORED_PROCEDURE":
@@ -489,8 +497,10 @@ from #ScriptedRoles
 
 				SELECT CONSTRAINT_CATALOG AS TABLE_CATALOG, CONSTRAINT_SCHEMA AS TABLE_SCHEMA, 
 						NotForReplication,
-						TableName AS TABLE_NAME, CONSTRAINT_NAME, CHECK_CLAUSE 
+						TableName AS TABLE_NAME, CONSTRAINT_NAME, CHECK_CLAUSE,
+                        sc.modify_date
 				FROM INFORMATION_SCHEMA.CHECK_CONSTRAINTS
+                INNER JOIN sys.check_constraints sc on sc.name = CHECK_CONSTRAINTS.CONSTRAINT_NAME
 				INNER JOIN SysObjectCheckConstraints ON 
 				SysObjectCheckConstraints.SchemaName = CHECK_CONSTRAINTS.CONSTRAINT_SCHEMA AND
 				SysObjectCheckConstraints.ConstraintName = CHECK_CONSTRAINTS.CONSTRAINT_NAME 
@@ -506,8 +516,9 @@ from #ScriptedRoles
 						Convert.ToBoolean(dr["NotForReplication"]),
 						(string) dr["CHECK_CLAUSE"]
 						);
+                    constraint.ModifyDate = (DateTime)dr["modify_date"];
 
-					t.AddConstraint(constraint);
+                    t.AddConstraint(constraint);
 				}
 			}
 		}
@@ -517,15 +528,18 @@ from #ScriptedRoles
 					select 
 						TABLE_SCHEMA,
 						TABLE_NAME, 
-						CONSTRAINT_NAME
-					from INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+						CONSTRAINT_NAME,
+                        sc.modify_date
+					from INFORMATION_SCHEMA.TABLE_CONSTRAINTS isc
+                    INNER JOIN sys.foreign_keys sc on sc.name = isc.CONSTRAINT_NAME
 					where CONSTRAINT_TYPE = 'FOREIGN KEY'";
 			using (var dr = cm.ExecuteReader()) {
 				while (dr.Read()) {
 					var t = FindTable((string) dr["TABLE_NAME"], (string) dr["TABLE_SCHEMA"]);
 					var fk = new ForeignKey((string) dr["CONSTRAINT_NAME"]);
 					fk.Table = t;
-					ForeignKeys.Add(fk);
+                    fk.ModifyDate = (DateTime)dr["modify_date"];
+                    ForeignKeys.Add(fk);
 				}
 			}
 
@@ -836,8 +850,10 @@ order by fk.name, fkc.constraint_column_id
 			cm.CommandText = @"
 				select 
 					TABLE_SCHEMA, 
-					TABLE_NAME 
-				from INFORMATION_SCHEMA.TABLES
+					TABLE_NAME,
+                    st.modify_date
+				from INFORMATION_SCHEMA.TABLES ist
+                inner join sys.tables st on st.name = ist.TABLE_NAME
 				where TABLE_TYPE = 'BASE TABLE'";
 			using (var dr = cm.ExecuteReader()) {
 				LoadTablesBase(dr, false, Tables);
@@ -848,7 +864,8 @@ order by fk.name, fkc.constraint_column_id
 				cm.CommandText = @"
 				select 
 					s.name as TABLE_SCHEMA,
-					tt.name as TABLE_NAME
+					tt.name as TABLE_NAME,
+                    null as modify_date
 				from sys.table_types tt
 				inner join sys.schemas s on tt.schema_id = s.schema_id
 				where tt.is_user_defined = 1
@@ -898,8 +915,8 @@ order by fk.name, fkc.constraint_column_id
 
 		private static void LoadTablesBase(SqlDataReader dr, bool areTableTypes, List<Table> tables) {
 			while (dr.Read()) {
-				tables.Add(new Table((string) dr["TABLE_SCHEMA"], (string) dr["TABLE_NAME"]) {IsType = areTableTypes});
-			}
+                tables.Add(new Table((string)dr["TABLE_SCHEMA"], (string)dr["TABLE_NAME"]) { IsType = areTableTypes, ModifyDate = (DateTime)dr["modify_date"] });
+            }
 		}
 
 		private void LoadSchemas(SqlCommand cm) {
@@ -1274,6 +1291,8 @@ where name = @dbname
 				var filePath = Path.Combine(dir, MakeFileName(o) + ".sql");
 				var script = o.ScriptCreate() + "\r\nGO\r\n";
 				File.AppendAllText(filePath, script);
+                if (o is IDatable)
+                    File.SetLastWriteTime(filePath, (o as IDatable).ModifyDate.GetValueOrDefault(Database.NOW));
 			}
 		}
 
