@@ -10,20 +10,22 @@ namespace SchemaZen.Library.Models {
 			Function,
 			Trigger,
 			View,
-			XmlSchemaCollection
+			XmlSchemaCollection,
+            TVFunction
 		}
 
-		public bool AnsiNull { get; set; }
+        public bool AnsiNull { get; set; }
 		public string Name { get; set; }
 		public bool QuotedId { get; set; }
 		public RoutineKind RoutineType { get; set; }
-		public string Owner { get; set; }
+        public string Owner { get; set; }
 		public string Text { get; set; }
 		public bool Disabled { get; set; }
 		public string RelatedTableSchema { get; set; }
 		public string RelatedTableName { get; set; }
 		public Database Db { get; set; }
         public DateTime? ModifyDate { get; set; }
+        public int ParamCount { get; set; }
 
         private const string _sqlCreateRegex =
 			@"\A" + Database.SqlWhitespaceOrCommentRegex + @"*?(CREATE)" + Database.SqlWhitespaceOrCommentRegex;
@@ -33,7 +35,11 @@ namespace SchemaZen.Library.Models {
 			@"|" + Database.SqlRegularIdentifierRegex + @")\.)?(" + Database.SqlEnclosedIdentifierRegex + @"|" +
 			Database.SqlRegularIdentifierRegex + @"))(?:\(|" + Database.SqlWhitespaceOrCommentRegex + @")";
 
-		public Routine(string owner, string name, Database db) {
+        private const string _sqlCreateRegex2 =
+            // @"\A"
+            Database.SqlWhitespaceOrCommentRegex + @"*?(CREATE)" + Database.SqlWhitespaceOrCommentRegex;
+
+        public Routine(string owner, string name, Database db) {
 			Owner = owner;
 			Name = name;
 			Db = db;
@@ -59,7 +65,8 @@ namespace SchemaZen.Library.Models {
 		}
 
 		private string ScriptBase(Database db, string definition) {
-			var before = ScriptQuotedIdAndAnsiNulls(db, false);
+            var check = ScriptCheckObjectExists();
+            var before = ScriptQuotedIdAndAnsiNulls(db, false);
 			var after = ScriptQuotedIdAndAnsiNulls(db, true);
 			if (!string.IsNullOrEmpty(after))
 				after = Environment.NewLine + "GO" + Environment.NewLine + after;
@@ -72,6 +79,8 @@ namespace SchemaZen.Library.Models {
                 definition = $"/* missing definition for {RoutineType} [{Owner}].[{Name}] */";
             else
             {
+                definition = scriptAlterDefinition(definition);
+
                 if (RoutineType == RoutineKind.View)
                 {
                     SQLFormatter.setTrailingCommas(true);
@@ -82,7 +91,7 @@ namespace SchemaZen.Library.Models {
 
             }
 
-			return before + definition + after;
+			return check + before + definition + after;
 		}
 
 		private static string RemoveExtraNewLines(string definition) {
@@ -148,5 +157,112 @@ namespace SchemaZen.Library.Models {
 				}
 			}
 		}
-	}
+
+        private string ScriptCheckObjectExists()
+        {
+            var script = "";
+
+            string schemaQualifier = "";
+            if (!string.IsNullOrEmpty(this.Owner) && this.Owner.ToLower() != "dbo")
+            {
+                schemaQualifier = "[" + this.Owner + "].";
+            }
+
+            if (RoutineType == RoutineKind.View)
+            {
+
+                script = String.Format(
+                    "IF NOT EXISTS (SELECT * FROM {0} WHERE object_id = OBJECT_ID(N'{1}{2}')){3}" +
+                    "\tEXEC sp_executesql N'CREATE {4} {1}{2} AS {5}'{3}GO{3}{3}",
+                    "sys.views",               // 0
+                    schemaQualifier,           // 1
+                    this.Name,                 // 2
+                    Environment.NewLine,       // 3
+                    "VIEW",                    // 4
+                    "SELECT 1 AS STUB"	       // 5
+                );
+
+            }
+            else if (RoutineType == RoutineKind.Trigger)
+            {
+                script = String.Format(
+                    "IF NOT EXISTS (SELECT * FROM {0} WHERE object_id = OBJECT_ID(N'{3}')){7}" +
+                    "\tEXEC sp_executesql N'CREATE {1} [{2}].[{3}] ON [{4}].[{5}] FOR UPDATE AS {6}'{7}GO{7}{7}",
+                    "sys.triggers",            // 0
+                    "TRIGGER",                 // 1
+                    this.Owner,                // 2 
+                    this.Name,                 // 3
+                    this.RelatedTableSchema,   // 4
+                    this.RelatedTableName,     // 5
+                    "SELECT 1 AS STUB",        // 6
+                    Environment.NewLine        // 7
+                );
+            }
+
+            else if (RoutineType == RoutineKind.Procedure)
+            {
+                script = String.Format(
+                    "IF NOT EXISTS (SELECT * FROM {0} WHERE object_id = OBJECT_ID(N'{3}')){5}" +
+                    "\tEXEC sp_executesql N'CREATE {1} [{2}].[{3}] AS {4}'{5}GO{5}{5}",
+                    "sys.procedures",          // 0
+                    "PROCEDURE",               // 1
+                    this.Owner,                // 2 
+                    this.Name,                 // 3
+                    "SELECT 1 AS STUB",        // 4
+                    Environment.NewLine        // 5
+                );
+            }
+            else if (RoutineType == RoutineKind.Function)
+            {
+                string sStubParamList = "";
+                for (int i = 0; i < this.ParamCount; i++)
+                {
+                    if (i > 0)
+                    {
+                        sStubParamList += ", ";
+                    }
+                    sStubParamList += "@p" + i.ToString() + " int";
+                }
+                script = String.Format(
+                    "IF NOT EXISTS (SELECT * FROM {0} WHERE object_id = OBJECT_ID(N'{3}') AND type IN ('FN', 'IF')){5}" +
+                    "\tEXEC sp_executesql N'CREATE {1} [{2}].[{3}]({6}) RETURNS INT AS {4}'{5}GO{5}{5}",
+                    "sys.objects",             // 0
+                    "FUNCTION",                // 1
+                    this.Owner,                // 2 
+                    this.Name,                 // 3
+                    "BEGIN RETURN 1 END",      // 4
+                    Environment.NewLine,       // 5
+                    sStubParamList             // 6
+                );
+            }
+            else if (RoutineType == RoutineKind.TVFunction)
+            {
+                script = String.Format(
+                    "IF NOT EXISTS (SELECT * FROM {0} WHERE object_id = OBJECT_ID(N'{3}') AND type IN ('TF')){5}" +
+                    "\tEXEC sp_executesql N'CREATE {1} [{2}].[{3}]() RETURNS @t TABLE(v int) {4}'{5}GO{5}{5}",
+                    "sys.objects",             // 0
+                    "FUNCTION",                // 1
+                    this.Owner,                // 2 
+                    this.Name,                 // 3
+                    "BEGIN RETURN END",        // 4
+                    Environment.NewLine        // 5
+                );
+            }
+            return script;
+        }
+
+
+        private string scriptAlterDefinition(string definition)
+        {
+            var script = definition;
+            var regex = new Regex(_sqlCreateRegex2, RegexOptions.IgnoreCase);
+            var match = regex.Match(definition);
+            var group = match.Groups[1];
+            if (group.Success)
+            {
+                script = definition.Substring(0, group.Index) + "ALTER" + definition.Substring(group.Index + group.Length);
+            }
+            return script;
+        }
+    }
 }

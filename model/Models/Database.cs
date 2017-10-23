@@ -138,7 +138,8 @@ namespace SchemaZen.Library.Models {
 
 		private static readonly HashSet<string> _dirs = new HashSet<string> {
 			"user_defined_types", "tables", "foreign_keys", "assemblies", "functions", "procedures", "triggers",
-			"views", "xmlschemacollections", "data", "roles", "users", "synonyms", "table_types"
+			"views", "xmlschemacollections", "data", "roles", "users", "synonyms", "table_types",
+            "tvfunctions"
 		};
 
 		public static HashSet<string> Dirs => _dirs;
@@ -438,7 +439,8 @@ from #ScriptedRoles
 						isnull(s2.name, s3.name) as tableSchema,
 						isnull(t.name, v.name) as tableName,
 						tr.is_disabled as trigger_disabled,
-                        o.modify_date
+                        o.modify_date,
+                        (select count(*) from sys.parameters sp where sp.object_id = m.object_id and sp.parameter_id > 0) as param_count
 					from sys.sql_modules m
 						inner join sys.objects o on m.object_id = o.object_id
 						inner join sys.schemas s on s.schema_id = o.schema_id
@@ -456,6 +458,7 @@ from #ScriptedRoles
 					r.AnsiNull = (bool) dr["uses_ansi_nulls"];
 					r.QuotedId = (bool) dr["uses_quoted_identifier"];
                     r.ModifyDate = (DateTime)dr["modify_date"];
+                    r.ParamCount = (int)dr["param_count"];
                     Routines.Add(r);
 
 					switch ((string) dr["type_desc"]) {
@@ -470,10 +473,12 @@ from #ScriptedRoles
 							break;
 						case "SQL_SCALAR_FUNCTION":
 						case "SQL_INLINE_TABLE_VALUED_FUNCTION":
-						case "SQL_TABLE_VALUED_FUNCTION":
 							r.RoutineType = Routine.RoutineKind.Function;
 							break;
-						case "VIEW":
+                        case "SQL_TABLE_VALUED_FUNCTION":
+                            r.RoutineType = Routine.RoutineKind.TVFunction;
+                            break;
+                        case "VIEW":
 							r.RoutineType = Routine.RoutineKind.View;
 							break;
 					}
@@ -1233,9 +1238,14 @@ where name = @dbname
 
 				var files = _dirs.Select(dir => Path.Combine(Dir, dir))
 					.Where(Directory.Exists).SelectMany(Directory.GetFiles);
+                
+                // (Testing) Overwrite script files instead deleting them (versioning support - svn)
+                /*
 				foreach (var f in files) {
 					File.Delete(f);
 				}
+                */
+
 				log(TraceLevel.Verbose, "Existing files deleted.");
 			} else {
 				Directory.CreateDirectory(Dir);
@@ -1286,11 +1296,26 @@ where name = @dbname
 			var dir = Path.Combine(Dir, name);
 			Directory.CreateDirectory(dir);
 			var index = 0;
+
+			// (Testing) Overwrite script files instead deleting them (versioning support - svn)
+            HashSet<string> ficheros = new HashSet<string>();
+
 			foreach (var o in objects) {
 				log(TraceLevel.Verbose, $"Scripting {name} {++index} of {objects.Count}...{(index < objects.Count ? "\r" : string.Empty)}");
 				var filePath = Path.Combine(dir, MakeFileName(o) + ".sql");
 				var script = o.ScriptCreate() + "\r\nGO\r\n";
-				File.AppendAllText(filePath, script);
+
+				// (Testing) Overwrite script files instead deleting them (versioning support - svn)
+                if (!ficheros.Contains(filePath))
+                {
+                    if (File.Exists(filePath))
+                    {
+                        File.Create(filePath).Close();
+                    }
+                }
+                ficheros.Add(filePath);
+
+                File.AppendAllText(filePath, script);
                 if (o is IDatable)
                     File.SetLastWriteTime(filePath, (o as IDatable).ModifyDate.GetValueOrDefault(Database.NOW));
 			}
