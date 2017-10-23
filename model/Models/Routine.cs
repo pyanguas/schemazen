@@ -171,46 +171,27 @@ namespace SchemaZen.Library.Models {
             if (RoutineType == RoutineKind.View)
             {
 
-                script = String.Format(
-                    "IF NOT EXISTS (SELECT * FROM {0} WHERE object_id = OBJECT_ID(N'{1}{2}')){3}" +
-                    "\tEXEC sp_executesql N'CREATE {4} {1}{2} AS {5}'{3}GO{3}{3}",
-                    "sys.views",               // 0
-                    schemaQualifier,           // 1
-                    this.Name,                 // 2
-                    Environment.NewLine,       // 3
-                    "VIEW",                    // 4
-                    "SELECT 1 AS STUB"	       // 5
-                );
-
+                script =
+                    $"IF NOT EXISTS (SELECT * FROM sys.views WHERE object_id = OBJECT_ID(N'{schemaQualifier}{this.Name}')){Environment.NewLine}" +
+                    $"\tEXEC sp_executesql N'CREATE VIEW {schemaQualifier}{this.Name} AS SELECT 1 AS STUB'{Environment.NewLine}GO{Environment.NewLine}{Environment.NewLine}"
+                ;
             }
             else if (RoutineType == RoutineKind.Trigger)
             {
-                script = String.Format(
-                    "IF NOT EXISTS (SELECT * FROM {0} WHERE object_id = OBJECT_ID(N'{3}')){7}" +
-                    "\tEXEC sp_executesql N'CREATE {1} [{2}].[{3}] ON [{4}].[{5}] FOR UPDATE AS {6}'{7}GO{7}{7}",
-                    "sys.triggers",            // 0
-                    "TRIGGER",                 // 1
-                    this.Owner,                // 2 
-                    this.Name,                 // 3
-                    this.RelatedTableSchema,   // 4
-                    this.RelatedTableName,     // 5
-                    "SELECT 1 AS STUB",        // 6
-                    Environment.NewLine        // 7
-                );
+
+                script =
+                    $"IF NOT EXISTS (SELECT * FROM sys.triggers WHERE object_id = OBJECT_ID(N'{this.Name}')){Environment.NewLine}" +
+                    $"\tEXEC sp_executesql N'CREATE TRIGGER [{this.Owner}].[{this.Name}] ON [{this.RelatedTableSchema}].[{this.RelatedTableName}] FOR UPDATE AS SELECT 1 AS STUB'{Environment.NewLine}GO{Environment.NewLine}{Environment.NewLine}"
+                ;
+
             }
 
             else if (RoutineType == RoutineKind.Procedure)
             {
-                script = String.Format(
-                    "IF NOT EXISTS (SELECT * FROM {0} WHERE object_id = OBJECT_ID(N'{3}')){5}" +
-                    "\tEXEC sp_executesql N'CREATE {1} [{2}].[{3}] AS {4}'{5}GO{5}{5}",
-                    "sys.procedures",          // 0
-                    "PROCEDURE",               // 1
-                    this.Owner,                // 2 
-                    this.Name,                 // 3
-                    "SELECT 1 AS STUB",        // 4
-                    Environment.NewLine        // 5
-                );
+                script =
+                    $"IF NOT EXISTS (SELECT * FROM sys.procedures WHERE object_id = OBJECT_ID(N'{this.Name}')){Environment.NewLine}" +
+                    $"\tEXEC sp_executesql N'CREATE PROCEDURE [{this.Owner}].[{this.Name}] AS SELECT 1 AS STUB'{Environment.NewLine}GO{Environment.NewLine}{Environment.NewLine}"
+                ;
             }
             else if (RoutineType == RoutineKind.Function)
             {
@@ -223,20 +204,18 @@ namespace SchemaZen.Library.Models {
                     }
                     sStubParamList += "@p" + i.ToString() + " int";
                 }
-                script = String.Format(
-                    "IF NOT EXISTS (SELECT * FROM {0} WHERE object_id = OBJECT_ID(N'{3}') AND type IN ('FN', 'IF')){5}" +
-                    "\tEXEC sp_executesql N'CREATE {1} [{2}].[{3}]({6}) RETURNS INT AS {4}'{5}GO{5}{5}",
-                    "sys.objects",             // 0
-                    "FUNCTION",                // 1
-                    this.Owner,                // 2 
-                    this.Name,                 // 3
-                    "BEGIN RETURN 1 END",      // 4
-                    Environment.NewLine,       // 5
-                    sStubParamList             // 6
-                );
+
+                script =
+                   $"IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'{this.Name}') AND type IN ('FN', 'IF')){Environment.NewLine}" +
+                   $"\tEXEC sp_executesql N'CREATE FUNCTION [{this.Owner}].[{this.Name}]({sStubParamList}) RETURNS INT AS BEGIN RETURN 1 END'{Environment.NewLine}GO{Environment.NewLine}{Environment.NewLine}"
+                ;
             }
             else if (RoutineType == RoutineKind.TVFunction)
             {
+                script =
+                    $"IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'{this.Name}') AND type IN ('TF')){Environment.NewLine}" +
+                    $"\tEXEC sp_executesql N'CREATE FUNCTION [{this.Owner}].[{this.Name}]() RETURNS @t TABLE(v int) BEGIN RETURN END'{Environment.NewLine}GO{Environment.NewLine}{Environment.NewLine}"
+                ;
                 script = String.Format(
                     "IF NOT EXISTS (SELECT * FROM {0} WHERE object_id = OBJECT_ID(N'{3}') AND type IN ('TF')){5}" +
                     "\tEXEC sp_executesql N'CREATE {1} [{2}].[{3}]() RETURNS @t TABLE(v int) {4}'{5}GO{5}{5}",
