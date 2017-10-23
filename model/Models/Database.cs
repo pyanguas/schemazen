@@ -1302,8 +1302,19 @@ where name = @dbname
 
 			foreach (var o in objects) {
 				log(TraceLevel.Verbose, $"Scripting {name} {++index} of {objects.Count}...{(index < objects.Count ? "\r" : string.Empty)}");
-				var filePath = Path.Combine(dir, MakeFileName(o) + ".sql");
-				var script = o.ScriptCreate() + "\r\nGO\r\n";
+
+                // (change) Create schema-name sub-directory for non 'dbo' objects
+                //var filePath = Path.Combine(dir, MakeFileName(o) + ".sql");
+                string subdir = dir;
+                var schema = (o as IHasOwner) == null ? "" : (o as IHasOwner).Owner;
+                if (!string.IsNullOrEmpty(schema) && schema.ToLower() != "dbo")
+                {
+                    subdir = Path.Combine(dir, schema);
+                    Directory.CreateDirectory(subdir);
+                }
+                var filePath = Path.Combine(subdir, MakeFileName(o) + ".sql");
+
+                var script = o.ScriptCreate() + "\r\nGO\r\n";
 
 				// (Testing) Overwrite script files instead deleting them (versioning support - svn)
                 if (!ficheros.Contains(filePath))
@@ -1342,10 +1353,14 @@ where name = @dbname
 			// This maintains backward compatability for those who use
 			// SchemaZen to keep their schemas under version control.
 			var fileName = name;
+
+            // (Change) Don't include schema name for any object (prev. created sub-directory for non-dbo objects in WriteScriptDir)
+            /*
 			if (!string.IsNullOrEmpty(schema) && schema.ToLower() != "dbo") {
 				fileName = $"{schema}.{name}";
 			}
-			return Path.GetInvalidFileNameChars().Aggregate(fileName, (current, invalidChar) => current.Replace(invalidChar, '-'));
+            */
+            return Path.GetInvalidFileNameChars().Aggregate(fileName, (current, invalidChar) => current.Replace(invalidChar, '-'));
 		}
 
 		public void ExportData(string tableHint = null, Action<TraceLevel, string> log = null) {
