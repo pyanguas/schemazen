@@ -83,7 +83,9 @@ namespace SchemaZen.Library.Models {
 		public List<SqlUser> Users { get; set; } = new List<SqlUser>();
 		public List<Constraint> ViewIndexes { get; set; } = new List<Constraint>();
 
-		public DbProp FindProp(string name) {
+        public List<IGUScript> IGUScripts = new List<IGUScript>();
+
+        public DbProp FindProp(string name) {
 			return Props.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.CurrentCultureIgnoreCase));
 		}
 
@@ -194,11 +196,20 @@ namespace SchemaZen.Library.Models {
 					LoadUsersAndLogins(cm);
 					LoadSynonyms(cm);
 					LoadRoles(cm);
-				}
+
+                    LoadMasterData(cm);
+                }
 			}
 		}
 
-		private void LoadSynonyms(SqlCommand cm) {
+        private void LoadMasterData(SqlCommand cm)
+        {
+            IGUScript.LoadIGUScripts(cm, IGUScripts);
+        }
+
+
+
+        private void LoadSynonyms(SqlCommand cm) {
 			try {
 				// get synonyms
 				cm.CommandText = @"
@@ -1253,7 +1264,10 @@ where name = @dbname
 
 			WritePropsScript(log);
 			WriteSchemaScript(log);
-			WriteScriptDir("tables", Tables.ToArray(), log);
+
+            WriteMasterData(log);
+
+            WriteScriptDir("tables", Tables.ToArray(), log);
 			WriteScriptDir("table_types", TableTypes.ToArray(), log);
 			WriteScriptDir("user_defined_types", UserDefinedTypes.ToArray(), log);
 			WriteScriptDir("foreign_keys", ForeignKeys.OrderBy(x => x, ForeignKeyComparer.Instance).ToArray(), log);
@@ -1290,11 +1304,27 @@ where name = @dbname
 			File.WriteAllText($"{Dir}/schemas.sql", text.ToString());
 		}
 
-		private void WriteScriptDir(string name, ICollection<IScriptable> objects, Action<TraceLevel, string> log) {
+        private void WriteMasterData(Action<TraceLevel, string> log)
+        {
+
+            WriteScriptDir(IGUScript.BASE_PATH, IGUScripts.ToArray(), log);
+        }
+
+        private void WriteScriptDir(string name, ICollection<IScriptable> objects, Action<TraceLevel, string> log) {
 			if (!objects.Any()) return;
-			if (!_dirs.Contains(name)) return;
-			var dir = Path.Combine(Dir, name);
-			Directory.CreateDirectory(dir);
+
+            //if (!_dirs.Contains(name)) return;            
+            if (! _dirs.Contains(name))
+            {
+                if (objects.Count == 0)
+                    return;
+
+                if (! (objects.First() is ICustomName))
+                    return;
+            }
+
+            var dir = Path.Combine(Dir, name);
+            Directory.CreateDirectory(dir);
 			var index = 0;
 
 			// (Testing) Overwrite script files instead deleting them (versioning support - svn)
@@ -1306,12 +1336,19 @@ where name = @dbname
                 // (change) Create schema-name sub-directory for non 'dbo' objects
                 //var filePath = Path.Combine(dir, MakeFileName(o) + ".sql");
                 string subdir = dir;
+                if (o is ICustomName)
+                {
+                    subdir = Path.Combine(dir, (o as ICustomName).Subdir.ToLower());
+                    Directory.CreateDirectory(subdir);
+                }
+
                 var schema = (o as IHasOwner) == null ? "" : (o as IHasOwner).Owner;
                 if (!string.IsNullOrEmpty(schema) && schema.ToLower() != "dbo")
                 {
-                    subdir = Path.Combine(dir, schema);
+                    subdir = Path.Combine(subdir, schema);
                     Directory.CreateDirectory(subdir);
                 }
+
                 var filePath = Path.Combine(subdir, MakeFileName(o) + ".sql");
 
                 var script = o.ScriptCreate() + "\r\nGO\r\n";
@@ -1338,9 +1375,10 @@ where name = @dbname
 			if (fk != null) return MakeFileName(fk.Table);
 
 			var schema = (o as IHasOwner) == null ? "" : (o as IHasOwner).Owner;
-			var name = (o as INameable) == null ? "" : (o as INameable).Name;
+            //var name = (o as INameable) == null ? "" : (o as INameable).Name;
+            var name = (o as INameable) == null ? "" : ((o as ICustomName == null)? (o as INameable).Name : (o as ICustomName).Filename);
 
-			var fileName = MakeFileName(schema, name);
+            var fileName = MakeFileName(schema, name);
 
 			// prefix user defined types with TYPE_
 			var prefix = (o as Table) == null ? "" : (o as Table).IsType ? "TYPE_" : "";

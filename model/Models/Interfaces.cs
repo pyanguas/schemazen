@@ -17,4 +17,10 @@ namespace SchemaZen.Library.Models {
         DateTime? ModifyDate { get; set; }
     }
 
+    public interface ICustomName
+    {
+        string Subdir { get; set; }
+        string Filename { get; set; }
+    }
+
 }
