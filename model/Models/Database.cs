@@ -164,7 +164,7 @@ namespace SchemaZen.Library.Models {
 
 		#region Load
 
-		public void Load() {
+		public void Load(Action<TraceLevel, string> log = null) {
 			Tables.Clear();
 			TableTypes.Clear();
 			Routines.Clear();
@@ -175,6 +175,8 @@ namespace SchemaZen.Library.Models {
 			Users.Clear();
 			Synonyms.Clear();
 			Roles.Clear();
+
+            IGUScripts.Clear();
 
 			using (var cn = new SqlConnection(Connection)) {
 				cn.Open();
@@ -197,14 +199,14 @@ namespace SchemaZen.Library.Models {
 					LoadSynonyms(cm);
 					LoadRoles(cm);
 
-                    LoadMasterData(cm);
+                    LoadMasterData(cm, log);
                 }
 			}
 		}
 
-        private void LoadMasterData(SqlCommand cm)
+        private void LoadMasterData(SqlCommand cm, Action<TraceLevel, string> log)
         {
-            IGUScript.LoadIGUScripts(cm, IGUScripts);
+            IGUScript.LoadIGUScripts(cm, IGUScripts, log);
         }
 
 

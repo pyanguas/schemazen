@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 
 using System.Data.SqlClient;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 
@@ -46,14 +47,16 @@ namespace SchemaZen.Library.Models {
 		}
 
 
-        public static void LoadIGUScripts(SqlCommand cm, List<IGUScript> IguScripts)
+        public static void LoadIGUScripts(SqlCommand cm, List<IGUScript> IguScripts, Action<TraceLevel, string> log)
         {
             try
             {
                 // get synonyms
                 cm.CommandText = @"
 						select *
-						from _vwFormularios";
+						from _vwFormularios
+                        where Activado = 1
+                ";
                 using (var dr = cm.ExecuteReader())
                 {
                     while (dr.Read())
@@ -64,9 +67,9 @@ namespace SchemaZen.Library.Models {
                     }
                 }
             }
-            catch (SqlException)
+            catch (Exception e)
             {
-                // TODO: Mostrar error en LOG
+                log(TraceLevel.Error, e.Message);
             }
 
             try
@@ -80,7 +83,7 @@ namespace SchemaZen.Library.Models {
                 {
                     while (dr.Read())
                     {
-                        IGUScript iguScript = IguScripts.First(f => f.Name == ((string)dr["NombreFormulario"]));
+                        IGUScript iguScript = IguScripts.FirstOrDefault(f => f.Name == ((string)dr["NombreFormulario"]));
 
                         if (iguScript != null)
                         {
@@ -89,9 +92,9 @@ namespace SchemaZen.Library.Models {
                     }
                 }
             }
-            catch (SqlException)
+            catch (Exception e)
             {
-                // TODO: Mostrar error en LOG
+                log(TraceLevel.Error, e.Message);
             }
 
             try
@@ -105,7 +108,7 @@ namespace SchemaZen.Library.Models {
                 {
                     while (dr.Read())
                     {
-                        IGUScript iguScript = IguScripts.First(f => f.Name == ((string)dr["NombreFormulario"]));
+                        IGUScript iguScript = IguScripts.FirstOrDefault(f => f.Name == ((string)dr["NombreFormulario"]));
 
                         if (iguScript != null)
                         {
@@ -114,9 +117,9 @@ namespace SchemaZen.Library.Models {
                     }
                 }
             }
-            catch (SqlException)
+            catch (Exception e)
             {
-                // TODO: Mostrar error en LOG
+                log(TraceLevel.Error, e.Message);
             }
 
             try
@@ -130,7 +133,7 @@ namespace SchemaZen.Library.Models {
                 {
                     while (dr.Read())
                     {
-                        IGUScript iguScript = IguScripts.First(f => f.Name == ((string)dr["Formulario"]));
+                        IGUScript iguScript = IguScripts.FirstOrDefault(f => f.Name == ((string)dr["Formulario"]));
 
                         if (iguScript != null)
                         {
@@ -139,9 +142,9 @@ namespace SchemaZen.Library.Models {
                     }
                 }
             }
-            catch (SqlException)
+            catch (Exception e)
             {
-                // TODO: Mostrar error en LOG
+                log(TraceLevel.Error, e.Message);
             }
 
             try
@@ -155,7 +158,7 @@ namespace SchemaZen.Library.Models {
                 {
                     while (dr.Read())
                     {
-                        IGUScript iguScript = IguScripts.First(f => f.Name == ((string)dr["NombreFormulario"]));
+                        IGUScript iguScript = IguScripts.FirstOrDefault(f => f.Name == ((string)dr["NombreFormulario"]));
 
                         if (iguScript != null)
                         {
@@ -164,9 +167,9 @@ namespace SchemaZen.Library.Models {
                     }
                 }
             }
-            catch (SqlException)
+            catch (Exception e)
             {
-                // TODO: Mostrar error en LOG
+                log(TraceLevel.Error, e.Message);
             }
         }
 
@@ -258,8 +261,9 @@ namespace SchemaZen.Library.Models {
             sb.Append(gcs(dr["NomVista"], anchoCampoScript: 50));
             sb.Append(gcs(dr["CampoClaveVista"], anchoCampoScript: 25));
             sb.Append(gcs(dr["CampoMensajeVista"], anchoCampoScript: 25));
-            sb.Append(gcs(dr["CampoRelVistaGrid"], anchoCampoScript: 25));
-            sb.Append(gcs(dr["ColorRGB"], "", anchoCampoScript: 15, dc: ""));
+            sb.Append(gcs(dr["CampoRelVistaGrid"], "", anchoCampoScript: 25));
+            if (! dr["ColorRGB"].Equals(DBNull.Value))
+                sb.Append(gcs(dr["ColorRGB"], "", anchoCampoScript: 15, dc: "", carAnterior: ", "));
 
             lineasColumnasCheckMensaje.Add(sb.ToString());
         }
@@ -300,12 +304,10 @@ namespace SchemaZen.Library.Models {
             if (lineasDropdownGrid.Count > 0)
             {
                 sb.AppendLine($"\tselect * from _vwDropdownsGrid v where v.Formulario = '{Name}' order by v.IDGrid, v.NombreDropdown");
-                sb.AppendLine();
             }
             if (lineasColumnasCheckMensaje.Count > 0)
             {
                 sb.AppendLine($"\tselect * from _vwIGUColumnasCheckMensaje v where v.NombreFormulario = '{Name}' order by v.IDGrid, SecuenciaColumna");
-                sb.AppendLine();
             }
 
             sb.AppendLine();
@@ -318,7 +320,7 @@ namespace SchemaZen.Library.Models {
 
 		private const string DC = "'";
 		//private const string DC2 = DC + DC;
-		private string gcs(Object o, string carPosterior = ", ", bool valorNullCad = false, int anchoCampoScript = 0, string dc = DC)
+		private string gcs(Object o, string carPosterior = ", ", bool valorNullCad = false, int anchoCampoScript = 0, string dc = DC, string carAnterior = "")
 		{
 			String cad = "";
             string dc2 = dc + dc;
@@ -359,7 +361,7 @@ namespace SchemaZen.Library.Models {
 				cad = cad + new string(' ', anchoCampoScript - cad.Length);
 			}
 
-			cad = cad + carPosterior;
+			cad = carAnterior + cad + carPosterior;
 
 			return cad;
 		}

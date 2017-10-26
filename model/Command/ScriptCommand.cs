@@ -17,7 +17,7 @@ namespace SchemaZen.Library.Command {
 			var db = CreateDatabase(filteredTypes);
 
 			Logger.Log(TraceLevel.Verbose, "Loading database schema...");
-			db.Load();
+			db.Load(Logger.Log);
 			Logger.Log(TraceLevel.Verbose, "Database schema loaded.");
 
 			foreach (var nameAndSchema in namesAndSchemas) {
