@@ -46,14 +46,18 @@ namespace SchemaZen.Library.Models {
 		public string DefaultText {
 			get {
 				if (Default == null || !string.IsNullOrEmpty(ComputedDefinition)) return "";
-				return "\r\n      " + Default.ScriptAsPartOfColumnDefinition();
+                // Default text without CRLF
+				//return "\r\n      " + Default.ScriptAsPartOfColumnDefinition();
+				return Default.ScriptAsPartOfColumnDefinition();
 			}
 		}
 
 		public string IdentityText {
 			get {
 				if (Identity == null) return "";
-				return "\r\n      " + Identity.Script();
+                // Identity text without CRLF
+                //return "\r\n      " + Identity.Script();
+                return Identity.Script();
 			}
 		}
 
@@ -71,9 +75,13 @@ namespace SchemaZen.Library.Models {
 				return $"[{Name}] AS {ComputedDefinition}{persistedSetting}";
 			}
 
-			var val = new StringBuilder($"[{Name}] [{Type}]");
+            // Column indent
+            //var val = new StringBuilder($"[{Name}] [{Type}]");
+            var val = new StringBuilder($"[{Name}]");
+            val.Append(new string(' ', 35 - Name.Length));
+            val.Append($"[{Type}]");
 
-			switch (Type) {
+            switch (Type) {
 				case "bigint":
 				case "bit":
 				case "date":
@@ -99,8 +107,11 @@ namespace SchemaZen.Library.Models {
 				case "geography":
 				case "xml":
 				case "sysname":
-					val.Append($" {IsNullableText}");
-					if (includeDefaultConstraint) val.Append(DefaultText);
+                    // Column indent
+                    val.Append(new string(' ', 19 - Type.Length));
+                    val.Append($" {IsNullableText}");
+                    val.Append(new string(' ', 10 - IsNullableText.Length));
+                    if (includeDefaultConstraint) val.Append(DefaultText);
 					if (Identity != null) val.Append(IdentityText);
 					if (IsRowGuidCol) val.Append(RowGuidColText);
 					return val.ToString();
@@ -111,16 +122,26 @@ namespace SchemaZen.Library.Models {
 				case "nvarchar":
 				case "varbinary":
 				case "varchar":
-					var lengthString = Length.ToString();
+                    // Column indent
+                    var lengthString = Length.ToString();
 					if (lengthString == "-1") lengthString = "max";
-					val.Append($"({lengthString}) {IsNullableText}");
-					if (includeDefaultConstraint) val.Append(DefaultText);
+                    //val.Append($"({lengthString}) {IsNullableText}");
+                    val.Append($"({lengthString})");
+                    val.Append(new string(' ', 20 - (Type.Length + lengthString.Length + 2)));
+                    val.Append($"{IsNullableText}");
+                    val.Append(new string(' ', 10 - IsNullableText.Length));
+                    if (includeDefaultConstraint) val.Append(DefaultText);
 					return val.ToString();
 
 				case "decimal":
 				case "numeric":
-					val.Append($"({Precision},{Scale}) {IsNullableText}");
-					if (includeDefaultConstraint) val.Append(DefaultText);
+                    // Column indent
+                    //val.Append($"({Precision},{Scale}) {IsNullableText}");
+                    val.Append($"({Precision},{Scale})");
+                    val.Append(new String(' ', 20 - (Type.Length + Precision.ToString().Length + Scale.ToString().Length + 3)));
+                    val.Append($"{IsNullableText}");
+                    val.Append(new string(' ', 10 - IsNullableText.Length));
+                    if (includeDefaultConstraint) val.Append(DefaultText);
 					if (Identity != null) val.Append(IdentityText);
 					return val.ToString();
 

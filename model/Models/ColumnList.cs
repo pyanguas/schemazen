@@ -20,7 +20,9 @@ namespace SchemaZen.Library.Models {
 		public Column Find(string name) {
 			return _mItems.FirstOrDefault(c => c.Name == name);
 		}
-
+        
+        // Comma after line
+        /*
 		public string Script() {
 			var text = new StringBuilder();
 			foreach (var c in _mItems) {
@@ -33,5 +35,25 @@ namespace SchemaZen.Library.Models {
 			}
 			return text.ToString();
 		}
-	}
+        */
+
+        // Comma before line
+        public string Script()
+        {
+            var text = new StringBuilder();
+            foreach (var c in _mItems)
+            {
+                if (_mItems.IndexOf(c) > 0)
+                {
+                    text.Append("  , ");
+                }
+                else
+                {
+                    text.Append("    ");
+                }
+                text.AppendLine(c.ScriptCreate().TrimEnd());
+            }
+            return text.ToString();
+        }
+    }
 }

@@ -14,7 +14,7 @@
 		}
 
 		public string Script() {
-			return $"IDENTITY ({Seed},{Increment})";
+			return $" IDENTITY ({Seed},{Increment})";
 		}
 	}
 }

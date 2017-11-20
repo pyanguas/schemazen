@@ -11,7 +11,7 @@
 		}
 
 		public string ScriptAsPartOfColumnDefinition() {
-			return IsSystemNamed ? $" DEFAULT {Value}" : $"CONSTRAINT [{Name}] DEFAULT {Value}";
+			return IsSystemNamed ? $" DEFAULT {Value}" : $" CONSTRAINT [{Name}] DEFAULT {Value}";
 		}
 
 		public string ScriptDrop() {
