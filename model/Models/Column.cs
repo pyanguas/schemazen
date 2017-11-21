@@ -64,8 +64,11 @@ namespace SchemaZen.Library.Models {
 		public string RowGuidColText => IsRowGuidCol ? " ROWGUIDCOL " : string.Empty;
 
 		public bool Persisted { get; set; }
+        public string Description { get; set; }
+        public string Table { get; set; }
+        public string Owner { get; set; }
 
-		public ColumnDiff Compare(Column c) {
+        public ColumnDiff Compare(Column c) {
 			return new ColumnDiff(this, c);
 		}
 
@@ -181,7 +184,19 @@ namespace SchemaZen.Library.Models {
 		public Type SqlTypeToNativeType() {
 			return SqlTypeToNativeType(Type);
 		}
-	}
+
+        public string DescriptionScriptCreate(int _maxColLength)
+        {
+            StringBuilder val = new StringBuilder("\tEXEC _spDescripcionColumna");
+            val.Append($" '{this.Owner}'");
+            val.Append($", '{this.Table}'");
+            val.Append($", '{this.Name}'");
+            val.Append(new string(' ', _maxColLength + 2 - this.Name.Length));
+            val.Append($", '{this.Description.Replace("'", "''")}'");
+
+            return val.ToString();
+        }
+    }
 
 	public class ColumnDiff {
 		public Column Source { get; set; }

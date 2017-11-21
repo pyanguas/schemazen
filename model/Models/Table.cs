@@ -148,7 +148,12 @@ end
 			}
 			text.AppendLine(")");
 			text.AppendLine();
-			foreach (var c in _constraints.Where(c => c.Type == "INDEX")) {
+
+            text.Append(Columns.DescriptionsScript());
+
+            text.AppendLine();
+
+            foreach (var c in _constraints.Where(c => c.Type == "INDEX")) {
 				text.AppendLine(c.ScriptCreate());
 			}
 			return text.ToString();

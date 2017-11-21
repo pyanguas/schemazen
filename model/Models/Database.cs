@@ -781,12 +781,23 @@ order by fk.name, fkc.constraint_column_id
 					c.CHARACTER_MAXIMUM_LENGTH,
 					c.NUMERIC_PRECISION,
 					c.NUMERIC_SCALE,
-					CASE WHEN COLUMNPROPERTY(OBJECT_ID(c.TABLE_SCHEMA + '.' + c.TABLE_NAME), c.COLUMN_NAME, 'IsRowGuidCol') = 1 THEN 'YES' ELSE 'NO' END AS IS_ROW_GUID_COL
+					CASE WHEN COLUMNPROPERTY(OBJECT_ID(c.TABLE_SCHEMA + '.' + c.TABLE_NAME), c.COLUMN_NAME, 'IsRowGuidCol') = 1 THEN 'YES' ELSE 'NO' END AS IS_ROW_GUID_COL,
+                    isnull(sep.value, '') as COL_DESCRIPTION
 				from INFORMATION_SCHEMA.COLUMNS c
 					inner join INFORMATION_SCHEMA.TABLES t
 							on t.TABLE_NAME = c.TABLE_NAME
 								and t.TABLE_SCHEMA = c.TABLE_SCHEMA
 								and t.TABLE_CATALOG = c.TABLE_CATALOG
+					inner join (
+						sys.tables st
+						inner join sys.schemas sch on sch.schema_id = st.schema_id
+					) on st.name = t.TABLE_NAME and sch.name = t.TABLE_SCHEMA
+					inner join sys.columns sc on sc.object_id = st.object_id and sc.name = c.COLUMN_NAME
+					left join sys.extended_properties sep
+						on st.object_id = sep.major_id
+						and sc.column_id = sep.minor_id
+						and sep.name = 'MS_Description'
+
 				where
 					t.TABLE_TYPE = 'BASE TABLE'
 				order by t.TABLE_SCHEMA, c.TABLE_NAME, c.ORDINAL_POSITION
@@ -807,7 +818,8 @@ order by fk.name, fkc.constraint_column_id
 					CASE WHEN t.name = 'nvarchar' and c.max_length > 0 THEN CAST(c.max_length as int)/2 ELSE CAST(c.max_length as int) END as CHARACTER_MAXIMUM_LENGTH,
 					c.precision as NUMERIC_PRECISION,
 					CAST(c.scale as int) as NUMERIC_SCALE,
-					CASE WHEN c.is_rowguidcol = 1 THEN 'YES' ELSE 'NO' END as IS_ROW_GUID_COL
+					CASE WHEN c.is_rowguidcol = 1 THEN 'YES' ELSE 'NO' END as IS_ROW_GUID_COL,
+                    null as COL_DESCRIPTION
 				from sys.columns c
 					inner join sys.table_types tt
 						on tt.type_table_object_id = c.object_id
@@ -837,7 +849,8 @@ order by fk.name, fkc.constraint_column_id
 					Type = (string) dr["DATA_TYPE"],
 					IsNullable = (string) dr["IS_NULLABLE"] == "YES",
 					Position = (int) dr["ORDINAL_POSITION"],
-					IsRowGuidCol = (string) dr["IS_ROW_GUID_COL"] == "YES"
+					IsRowGuidCol = (string) dr["IS_ROW_GUID_COL"] == "YES",
+                    Description = (string) dr["COL_DESCRIPTION"]
 				};
 
 				switch (c.Type) {
@@ -859,6 +872,9 @@ order by fk.name, fkc.constraint_column_id
 				if (table == null || table.Name != (string) dr["TABLE_NAME"] || table.Owner != (string) dr["TABLE_SCHEMA"])
 					// only do a lookup if the table we have isn't already the relevant one
 					table = FindTableBase(tables, (string) dr["TABLE_NAME"], (string) dr["TABLE_SCHEMA"]);
+
+                c.Table = table.Name;
+                c.Owner = table.Owner;
 				table.Columns.Add(c);
 			}
 		}

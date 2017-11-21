@@ -9,8 +9,14 @@ namespace SchemaZen.Library.Models {
 
 		public ReadOnlyCollection<Column> Items => _mItems.AsReadOnly();
 
-		public void Add(Column c) {
-			_mItems.Add(c);
+        private int _maxLength = 0;
+
+        public void Add(Column c) {
+            _mItems.Add(c);
+            if (c.Name.Length > _maxLength)
+            {
+                _maxLength = c.Name.Length;
+            }
 		}
 
 		public void Remove(Column c) {
@@ -52,6 +58,16 @@ namespace SchemaZen.Library.Models {
                     text.Append("    ");
                 }
                 text.AppendLine(c.ScriptCreate().TrimEnd());
+            }
+            return text.ToString();
+        }
+
+        public string DescriptionsScript()
+        {
+            var text = new StringBuilder();
+            foreach (var c in _mItems)
+            {
+                text.AppendLine(c.DescriptionScriptCreate(_maxLength));
             }
             return text.ToString();
         }
